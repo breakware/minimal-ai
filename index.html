@@ -74,7 +74,8 @@
 
     /* Input */
     #input-area { border-top: 1px solid var(--border); padding: 0.75rem 1rem 1rem; background: var(--bg); }
-    #mode-select { font-size: 0.9rem; padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); max-width: 240px; }
+    #mode-select { font-size: 0.9rem; padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); width: auto; max-width: 100%; min-width: 0; }
+    #model-select { width: auto; max-width: 100%; min-width: 0; }
     #param-box { display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; flex: 0 1 auto; min-width: 0; }
     .param-chip { display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; }
     .param-chip label { color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -83,11 +84,14 @@
     .mode-toggle input { accent-color: var(--accent); }
     #user-input { width: 100%; min-height: 3.2rem; max-height: 200px; padding: 0.6rem 0.8rem; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 0.95rem; line-height: 1.35; resize: vertical; font-family: inherit; }
     #user-input:focus { outline: none; border-color: var(--accent); }
-    #send-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr); margin-top: 0.5rem; gap: 0.5rem; align-items: center; min-height: 2.35rem; }
-    #status { align-self: center; margin: 0; line-height: 1; }
-    .left-controls { display: flex; align-items: center; gap: 0.5rem; justify-content: flex-start; min-width: 0; }
-    #bottom-controls { display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; min-width: 0; }
-    #send-btn { justify-self: end; padding: 0.5rem 1rem; background: var(--accent); color: var(--accent-fg); border: none; border-radius: var(--radius-sm); font-size: 0.95rem; cursor: pointer; }
+    #send-row { display: flex; align-items: center; margin-top: 0.5rem; gap: 0.5rem; min-height: 2.35rem; padding: 0; }
+    #status { align-self: center; margin: 0; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .left-controls { display: flex; align-items: center; gap: 0.5rem; justify-content: flex-start; min-width: 0; flex: 0 0 10%; }
+    .left-controls .btn { display: inline-flex; align-items: center; justify-content: flex-start; text-align: left; }
+    #bottom-controls { display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; min-width: 0; flex: 1 1 0; overflow: hidden; }
+    .right-controls { display: flex; align-items: center; justify-content: flex-end; min-width: 0; flex: 0 0 10%; }
+    #send-btn { display: inline-flex; align-items: center; justify-content: center; text-align: center; padding: 0.5rem 1rem; background: var(--accent); color: var(--accent-fg); border: none; border-radius: var(--radius-sm); font-size: 0.95rem; cursor: pointer; }
+    #model-select, #mode-select { width: auto; max-width: 100%; min-width: 0; }
     #send-btn.stop { background: var(--error); }
     #send-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
@@ -139,15 +143,17 @@
             <span id="status" class="hint"></span>
           </div>
           <div id="bottom-controls" class="bottom-controls">
-            <button type="button" id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-            </button>
             <select id="model-select" title="Model" aria-label="Model"></select>
             <select id="mode-select" title="Mode" aria-label="Mode"></select>
             <div id="param-box"></div>
             <label class="mode-toggle" title="Enable web fetch and search"><input id="web-search-toggle" type="checkbox"> Web</label>
+            <button type="button" id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </button>
           </div>
-          <button type="button" id="send-btn">Send</button>
+          <div class="right-controls">
+            <button type="button" id="send-btn">Send</button>
+          </div>
         </div>
       </div>
     </main>
