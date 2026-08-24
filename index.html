@@ -187,9 +187,21 @@
       </div>
 
       <div class="field">
-        <label for="s-web-max-results">Web search max results</label>
-        <input id="s-web-max-results" type="number" min="1" max="10" value="3">
-        <div class="hint">Used only when the Web checkbox is enabled. Higher values use more search credits and tokens.</div>
+        <label for="s-web-max-results">Web search max results per query</label>
+        <input id="s-web-max-results" type="number" min="1" max="25" value="5">
+        <div class="hint">Used by the OpenRouter web_search server tool. Higher values return more context per search and use more search credits/tokens.</div>
+      </div>
+
+      <div class="field">
+        <label for="s-web-max-uses">Web search max uses per request</label>
+        <input id="s-web-max-uses" type="number" min="1" max="30" value="10">
+        <div class="hint">Maximum number of searches the model may perform in one request. Increase this to let the model keep searching when it needs more context.</div>
+      </div>
+
+      <div class="field">
+        <label for="s-web-max-total-results">Web search max total results</label>
+        <input id="s-web-max-total-results" type="number" min="1" max="100" value="30">
+        <div class="hint">Maximum total results across all searches in one request. Useful as a cost/context cap for agentic search.</div>
       </div>
 
       <div class="field">
@@ -228,7 +240,9 @@
         contextLength: 10,
         webSearch: {
           enabled: false,
-          maxResults: 3
+          maxResults: 5,
+          maxUses: 10,
+          maxTotalResults: 30
         },
         templates: [
           { id: 'chat', name: 'Chat', body: '@input' },
@@ -341,6 +355,8 @@
     const sSystem = document.getElementById('s-system');
     const sContext = document.getElementById('s-context');
     const sWebMaxResults = document.getElementById('s-web-max-results');
+    const sWebMaxUses = document.getElementById('s-web-max-uses');
+    const sWebMaxTotalResults = document.getElementById('s-web-max-total-results');
     const templatesList = document.getElementById('templates-list');
     const addTemplateBtn = document.getElementById('add-template-btn');
 
@@ -605,20 +621,34 @@
 
     function getWebMaxResults() {
       const raw = parseInt(state.settings.webSearch?.maxResults, 10);
-      if (!Number.isFinite(raw)) return 3;
-      return Math.min(10, Math.max(1, raw));
+      if (!Number.isFinite(raw)) return 5;
+      return Math.min(25, Math.max(1, raw));
+    }
+
+    function getWebMaxUses() {
+      const raw = parseInt(state.settings.webSearch?.maxUses, 10);
+      if (!Number.isFinite(raw)) return 10;
+      return Math.min(30, Math.max(1, raw));
+    }
+
+    function getWebMaxTotalResults() {
+      const raw = parseInt(state.settings.webSearch?.maxTotalResults, 10);
+      if (!Number.isFinite(raw)) return getWebMaxResults() * 5;
+      return Math.min(100, Math.max(1, raw));
     }
 
     function getWebTool() {
       const maxResults = getWebMaxResults();
+      const maxUses = getWebMaxUses();
+      const maxTotalResults = Math.max(getWebMaxTotalResults(), maxResults * 2);
       return {
         type: 'openrouter:web_search',
         parameters: {
           engine: 'auto',
           max_results: maxResults,
-          max_total_results: maxResults * 2,
-          max_uses: 2,
-          max_characters: 4000
+          max_total_results: maxTotalResults,
+          max_uses: maxUses,
+          search_context_size: 'medium'
         }
       };
     }
@@ -885,6 +915,7 @@
       const payload = { model: state.model, messages: payloadMsgs, stream: true };
       if (state.settings.webSearch?.enabled) {
         payload.tools = [getWebTool()];
+        payload.max_tool_calls = getWebMaxUses();
       }
       const base = state.settings.apiBase.replace(/\/+$/, '');
       const url = base + '/chat/completions';
@@ -963,6 +994,8 @@
       sSystem.value = state.settings.systemPrompt;
       sContext.value = state.settings.contextLength;
       sWebMaxResults.value = getWebMaxResults();
+      sWebMaxUses.value = getWebMaxUses();
+      sWebMaxTotalResults.value = getWebMaxTotalResults();
     }
 
     function createTemplateRow(tpl) {
@@ -1038,11 +1071,17 @@
       state.settings.contextLength = parseInt(sContext.value) || 10;
 
       const webMaxResultsRaw = parseInt(sWebMaxResults.value, 10);
-      const webMaxResults = Number.isFinite(webMaxResultsRaw) ? Math.min(10, Math.max(1, webMaxResultsRaw)) : getWebMaxResults();
+      const webMaxResults = Number.isFinite(webMaxResultsRaw) ? Math.min(25, Math.max(1, webMaxResultsRaw)) : getWebMaxResults();
+      const webMaxUsesRaw = parseInt(sWebMaxUses.value, 10);
+      const webMaxUses = Number.isFinite(webMaxUsesRaw) ? Math.min(30, Math.max(1, webMaxUsesRaw)) : getWebMaxUses();
+      const webMaxTotalResultsRaw = parseInt(sWebMaxTotalResults.value, 10);
+      const webMaxTotalResults = Number.isFinite(webMaxTotalResultsRaw) ? Math.min(100, Math.max(1, webMaxTotalResultsRaw)) : getWebMaxTotalResults();
 
       state.settings.webSearch = {
         enabled: webSearchToggle.checked,
-        maxResults: webMaxResults
+        maxResults: webMaxResults,
+        maxUses: webMaxUses,
+        maxTotalResults: Math.max(webMaxTotalResults, webMaxResults * 2)
       };
       state.settings.templates = newTemplates;
 
