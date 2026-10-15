@@ -1,6 +1,6 @@
 # Minimal AI
 
-A tiny, zero-dependency browser chat client for any OpenAI-compatible API endpoint (OpenRouter, OpenAI, self-hosted models, proxies, etc.).
+A tiny, single-file browser chat client for any OpenAI-compatible API endpoint (OpenRouter, OpenAI, self-hosted models, proxies, etc.).
 
 ## Use it directly
 
@@ -22,7 +22,7 @@ Drop `index.html` anywhere you can serve static HTML: a personal site, an intran
 
 ## Features
 
-- Markdown rendering
+- Markdown and LaTeX formula rendering (`$...$` and `$$...$$` via native MathML)
 - Streaming responses
 - Retry from any user message
 - Code block copying
