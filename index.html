@@ -43,7 +43,7 @@
     .msg.user .bubble { background: var(--user-bubble); border-color: #bfdbfe; border-bottom-right-radius: 4px; }
     .msg.assistant .bubble { background: var(--ai-bubble); border-color: #e5e7eb; border-bottom-left-radius: 4px; }
 
-    .bubble-actions { position: absolute; top: 0.35rem; right: 0.35rem; opacity: 0; transition: opacity 0.15s; display: flex; gap: 0.25rem; }
+    .bubble-actions { position: absolute; bottom: 0.35rem; right: 0.35rem; opacity: 0; transition: opacity 0.15s; display: flex; gap: 0.25rem; }
     .bubble:hover .bubble-actions { opacity: 1; }
     .action-btn { padding: 0.15rem 0.35rem; font-size: 0.75rem; cursor: pointer; border: 1px solid var(--border); background: var(--bg); border-radius: var(--radius-sm); color: var(--fg); display: flex; align-items: center; justify-content: center; gap: 0.2rem; }
     .action-btn:hover { background: #e5e7eb; }
@@ -53,6 +53,9 @@
 
     /* Markdown content */
     .bubble-content { overflow-wrap: anywhere; }
+    .bubble-content .math-display { max-width: 100%; overflow-x: auto; text-align: center; }
+    .bubble-content math[display="block"] { min-width: max-content; margin: 0.5rem auto; }
+    .bubble-content .math-fallback { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; white-space: pre-wrap; }
     .bubble-content p, .bubble-content .md-p { margin: 0 0 0.5em 0; }
     .bubble-content p:last-child, .bubble-content .md-p:last-child { margin-bottom: 0; }
     .bubble-content ul, .bubble-content ol { margin: 0 0 0.5em 0; padding-left: 1.25rem; }
@@ -86,14 +89,30 @@
     #user-input:focus { outline: none; border-color: var(--accent); }
     #send-row { display: flex; align-items: center; margin-top: 0.5rem; gap: 0.5rem; min-height: 2.35rem; padding: 0; }
     #status { align-self: center; margin: 0; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .left-controls { display: flex; align-items: center; gap: 0.5rem; justify-content: flex-start; min-width: 0; flex: 0 0 10%; }
+    .left-controls { display: flex; align-items: center; gap: 0.5rem; justify-content: flex-start; min-width: 0; flex: 0 0 auto; }
     .left-controls .btn { display: inline-flex; align-items: center; justify-content: flex-start; text-align: left; }
     #bottom-controls { display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; min-width: 0; flex: 1 1 0; overflow: hidden; }
-    .right-controls { display: flex; align-items: center; justify-content: flex-end; min-width: 0; flex: 0 0 10%; }
+    .right-controls { display: flex; align-items: center; justify-content: flex-end; min-width: 0; flex: 0 0 auto; }
     #send-btn { display: inline-flex; align-items: center; justify-content: center; text-align: center; padding: 0.5rem 1rem; background: var(--accent); color: var(--accent-fg); border: none; border-radius: var(--radius-sm); font-size: 0.95rem; cursor: pointer; }
     #model-select, #mode-select { width: auto; max-width: 100%; min-width: 0; }
     #send-btn.stop { background: var(--error); }
     #send-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    @media (max-width: 640px) {
+      #send-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+      .left-controls { grid-column: 1; grid-row: 1; }
+      .right-controls { grid-column: 2; grid-row: 1; }
+      #bottom-controls { display: flex; flex-wrap: wrap; grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; overflow: visible; gap: 0.25rem; }
+      #model-select { flex: 10 1 0; width: auto; min-width: 3.5rem; }
+      #mode-select { flex: 3 1 0; min-width: 4rem; }
+      #param-box { flex: 4 1 2.5rem; flex-wrap: nowrap; justify-content: flex-start; gap: 0.15rem; }
+      #param-box:empty { display: none; }
+      .param-chip { flex: 1 1 0; min-width: 0; gap: 0.1rem; }
+      .param-chip label { white-space: nowrap; font-size: 0.65rem; }
+      .param-chip input { flex: 1 1 2rem; width: 2rem; min-width: 1rem; padding: 0.15rem; }
+      #bottom-controls > .mode-toggle { flex: 0 0 auto; white-space: nowrap; gap: 0.2rem; font-size: 0.75rem; }
+      #settings-btn { flex: 0 0 auto; }
+    }
 
     .sources { margin: 0.25rem 0.5rem; display: grid; gap: 0.4rem; }
     .source-card { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); overflow: hidden; }
@@ -140,6 +159,7 @@
         <div id="send-row">
           <div class="left-controls">
             <button type="button" id="clear-chat-btn" class="btn danger">Clear chat</button>
+            <button type="button" id="export-chat-btn" class="btn" title="Export as Markdown (Shift+click for plain text)">Export</button>
             <span id="status" class="hint"></span>
           </div>
           <div id="bottom-controls" class="bottom-controls">
@@ -236,7 +256,7 @@
           'openai/gpt-5.5',
           'google/gemini-3.1-flash-lite-preview'
         ],
-        systemPrompt: "You are a helpful AI chat buddy:\n- When diagnosing an issue DO NOT SPAM THE USER WITH SHEETS OF TEXT - just ask 1-2 simple commands the user should run and stop.\n- Be precise and concise, try not to repeat yourself.\n- Converse as if chatting instead of providing long expert advice. You're too dumb to be an expert anyway.\n- Use Markdown for lists, tables, and styling.\n- Use ```code fences``` for all code blocks.",
+        systemPrompt: "You are a helpful AI chat buddy:\n- When diagnosing an issue DO NOT SPAM THE USER WITH SHEETS OF TEXT - just ask 1-2 simple commands the user should run and stop.\n- Be precise and concise, try not to repeat yourself.\n- Never guess! Search and verify!\n- Converse as if chatting instead of providing long expert advice.\n- Use Markdown for lists, tables, and styling.\n- Use ```code fences``` for all code blocks.",
         contextLength: 10,
         webSearch: {
           enabled: false,
@@ -333,6 +353,7 @@
     let state = loadState();
     let abortCtrl = null;
     let activeStreamIdx = null;
+    let activeStreamShouldFollow = false;
 
     const chatView = document.getElementById('chat-view');
     const settingsView = document.getElementById('settings-view');
@@ -344,6 +365,7 @@
     const userInput = document.getElementById('user-input');
     const sendBtn = document.getElementById('send-btn');
     const clearChatBtn = document.getElementById('clear-chat-btn');
+    const exportChatBtn = document.getElementById('export-chat-btn');
     const statusSpan = document.getElementById('status');
     const settingsBtn = document.getElementById('settings-btn');
     const backBtn = document.getElementById('back-btn');
@@ -439,6 +461,7 @@
       let text = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       const codeBlocks = [];
       const inlineCodes = [];
+      const mathExpressions = [];
 
       text = text.replace(/(^|\n)[ \t]*```(.*)\n([\s\S]*?)\n[ \t]*```/g, (match, prefix, lang, code) => {
         codeBlocks.push({ lang: lang.trim(), code: code });
@@ -447,8 +470,129 @@
 
       text = text.replace(/`([^`\n]+)`/g, (match, code) => {
         inlineCodes.push(code);
-        return `[[INLC${inlineCodes.length - 1}]]`;
+        return `\x00INLC${inlineCodes.length - 1}\x00`;
       });
+
+      text = text.replace(/(^|\n)[ \t]*\$\$([\s\S]*?)\$\$[ \t]*(?=\n|$)/g, (match, prefix, formula) => {
+        mathExpressions.push({ formula: formula.trim(), display: true });
+        return `${prefix}[[MATHD${mathExpressions.length - 1}]]`;
+      });
+      text = text.replace(/(^|[^\\])\$(?!\$)([^$\n]+?)\$(?!\$)/g, (match, prefix, formula) => {
+        mathExpressions.push({ formula, display: false });
+        return `${prefix}\x00MATHI${mathExpressions.length - 1}\x00`;
+      });
+
+      function renderMath(index) {
+        const expression = mathExpressions[index];
+        if (!expression) return '';
+        const formula = expression.formula;
+        let pos = 0;
+
+        function skipSpace() {
+          while (/\s/.test(formula[pos] || '') && pos < formula.length) pos++;
+        }
+
+        function readArgument() {
+          skipSpace();
+          if (formula[pos] === '{') {
+            pos++;
+            return `<mrow>${parseSequence(true)}</mrow>`;
+          }
+          return parseAtom();
+        }
+
+        function parseAtom() {
+          const ch = formula[pos++];
+          if (ch === '{') return `<mrow>${parseSequence(true)}</mrow>`;
+          if (ch === '\\') {
+            if (pos >= formula.length) throw new Error('Incomplete command');
+            let command;
+            if (/[A-Za-z]/.test(formula[pos])) {
+              const start = pos;
+              while (/[A-Za-z]/.test(formula[pos] || '')) pos++;
+              command = formula.slice(start, pos);
+            } else {
+              command = formula[pos++];
+            }
+            const symbols = {
+              to: '<mo>&#x2192;</mo>', rightarrow: '<mo>&#x2192;</mo>',
+              longrightarrow: '<mo stretchy="true">&#x27F6;</mo>',
+              leftarrow: '<mo>&#x2190;</mo>', Rightarrow: '<mo>&#x21D2;</mo>',
+              infty: '<mi>&#x221E;</mi>', alpha: '<mi>&#x03B1;</mi>',
+              beta: '<mi>&#x03B2;</mi>', theta: '<mi>&#x03B8;</mi>',
+              cdot: '<mo>&#x22C5;</mo>', times: '<mo>&#xD7;</mo>',
+              pm: '<mo>&#xB1;</mo>', le: '<mo>&#x2264;</mo>',
+              ge: '<mo>&#x2265;</mo>', neq: '<mo>&#x2260;</mo>',
+              approx: '<mo>&#x2248;</mo>', '{': '<mo>{</mo>',
+              '}': '<mo>}</mo>', '%': '<mo>%</mo>', '$': '<mo>$</mo>'
+            };
+            if (command === 'frac' || command === 'dfrac' || command === 'tfrac') {
+              const numerator = readArgument();
+              const denominator = readArgument();
+              return `<mfrac>${numerator}${denominator}</mfrac>`;
+            }
+            if (command === 'xrightarrow') {
+              const label = readArgument();
+              return `<mover accent="true"><mo stretchy="true">&#x27F6;</mo>${label}</mover>`;
+            }
+            if (command === 'quad') return '<mspace width="1em"/>';
+            if (command === 'qquad') return '<mspace width="2em"/>';
+            if (command === ',') return '<mspace width="0.167em"/>';
+            if (command === ':') return '<mspace width="0.222em"/>';
+            if (command === ';') return '<mspace width="0.278em"/>';
+            if (command === '!') return '<mspace width="-0.167em"/>';
+            if (command === ' ' || command === '\\') return '<mspace width="0.333em"/>';
+            if (command === 'left' || command === 'right' || command === 'displaystyle') return '';
+            if (symbols[command]) return symbols[command];
+            throw new Error('Unsupported command');
+          }
+          if (/[0-9]/.test(ch)) {
+            let number = ch;
+            while (/[0-9.]/.test(formula[pos] || '')) number += formula[pos++];
+            return `<mn>${number}</mn>`;
+          }
+          if (/[A-Za-z]/.test(ch)) return `<mi>${ch}</mi>`;
+          if ('+-=()[]|<>'.includes(ch)) return `<mo>${escapeHtml(ch)}</mo>`;
+          throw new Error('Unsupported symbol');
+        }
+
+        function parseSequence(stopAtBrace = false) {
+          const items = [];
+          while (pos < formula.length) {
+            skipSpace();
+            if (pos >= formula.length) break;
+            if (formula[pos] === '}') {
+              if (!stopAtBrace) throw new Error('Unexpected closing brace');
+              pos++;
+              return items.join('');
+            }
+            let base = parseAtom();
+            let sub = null, sup = null;
+            while (formula[pos] === '_' || formula[pos] === '^') {
+              const script = formula[pos++];
+              if (script === '_' ? sub !== null : sup !== null) throw new Error('Duplicate script');
+              const value = readArgument();
+              if (script === '_') sub = value;
+              else sup = value;
+            }
+            if (sub !== null && sup !== null) base = `<msubsup>${base}${sub}${sup}</msubsup>`;
+            else if (sub !== null) base = `<msub>${base}${sub}</msub>`;
+            else if (sup !== null) base = `<msup>${base}${sup}</msup>`;
+            items.push(base);
+          }
+          if (stopAtBrace) throw new Error('Unclosed group');
+          return items.join('');
+        }
+
+        try {
+          const body = parseSequence();
+          const display = expression.display ? ' display="block"' : '';
+          return `<math xmlns="http://www.w3.org/1998/Math/MathML"${display}><mrow>${body}</mrow></math>`;
+        } catch (e) {
+          const className = expression.display ? 'math-display' : 'math-inline';
+          return `<span class="math-fallback ${className}"><code>${escapeHtml(formula)}</code></span>`;
+        }
+      }
 
       function formatInline(s) {
         s = escapeHtml(s);
@@ -459,13 +603,15 @@
         s = s.replace(/\*([^\*\n]+)\*/g, '<em>$1</em>');
         s = s.replace(/_([^_\n]+)_/g, '<em>$1</em>');
         s = s.replace(/~~([^~\n]+)~~/g, '<del>$1</del>');
-        s = s.replace(/\[([^\]\n]+)\]\(([^)\n]+)\)/g, (match, text, href) => {
+        s = s.replace(/\[([^\]\n]+)\]\(([^)\s]+(?:\([^)]*\)[^)\s]*)*)\)/g, (match, text, href) => {
           const safeHref = sanitizeUrl(href);
-          if (!safeHref) return `<span>${escapeHtml(text)}</span>`;
-          return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${escapeHtml(text)}</a>`;
+          const inner = text.replace(/\x00INLC(\d+)\x00/g, (m, idx) => `<code>${escapeHtml(inlineCodes[idx] || '')}</code>`);
+          if (!safeHref) return `<span>${inner}</span>`;
+          return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${inner}</a>`;
         });
         
-        s = s.replace(/\[\[INLC(\d+)\]\]/g, (m, idx) => `<code>${escapeHtml(inlineCodes[idx] || '')}</code>`);
+        s = s.replace(/\x00INLC(\d+)\x00/g, (m, idx) => `<code>${escapeHtml(inlineCodes[idx] || '')}</code>`);
+        s = s.replace(/\x00MATHI(\d+)\x00/g, (m, idx) => renderMath(idx));
         return s;
       }
 
@@ -499,6 +645,9 @@
         let line = lines[i], trimmed = line.trim();
 
         if (/^\[\[BLK\d+\]\]$/.test(trimmed)) { flushAll(); out.push(trimmed); continue; }
+
+        const mathBlockMatch = trimmed.match(/^\[\[MATHD(\d+)\]\]$/);
+        if (mathBlockMatch) { flushAll(); out.push(`<div class="math-display">${renderMath(mathBlockMatch[1])}</div>`); continue; }
 
         const hMatch = line.match(/^(#{1,6})\s+(.*)$/);
         if (hMatch) {
@@ -558,6 +707,7 @@
         const langLabel = escLang ? `<span class="code-lang">${escLang}</span>` : `<span></span>`;
         return `<div class="pre-wrapper"><div class="code-header">${langLabel}<button class="copy-block-btn" title="Copy code">Copy</button></div><pre><code${langCls}>${escCode}</code></pre></div>`;
       });
+      finalHtml = finalHtml.replace(/\[\[MATHD(\d+)\]\]/g, (match, idx) => renderMath(idx));
 
       return finalHtml;
     }
@@ -777,8 +927,8 @@
       return isChatNearBottom();
     }
 
-    function renderChat(snapshot = null, allowNewContentCross = false) {
-      const shouldStickToBottom = shouldAutoScrollToBottom(snapshot, allowNewContentCross);
+    function renderChat(snapshot = null, allowNewContentCross = false, preserveScrollPosition = false) {
+      const shouldStickToBottom = !preserveScrollPosition && shouldAutoScrollToBottom(snapshot, allowNewContentCross);
       chatLog.innerHTML = '';
       for (let idx = 0; idx < state.messages.length; idx++) {
         const msg = state.messages[idx];
@@ -827,17 +977,30 @@
         }
         chatLog.appendChild(row);
       }
-      if (shouldStickToBottom) {
+      if (preserveScrollPosition && snapshot) {
+        chatLog.scrollTop = snapshot.scrollTop;
+      } else if (shouldStickToBottom) {
         chatLog.scrollTop = chatLog.scrollHeight;
       }
+    }
+
+    function keepActiveAnswerStartVisible() {
+      const row = getActiveStreamRow();
+      const answer = row?.querySelector('.bubble');
+      if (!activeStreamShouldFollow || !answer || !state.messages[activeStreamIdx]?.content) return;
+      const chatRect = chatLog.getBoundingClientRect();
+      const contentTop = chatRect.top + chatLog.clientTop + parseFloat(getComputedStyle(chatLog).paddingTop);
+      const offset = answer.getBoundingClientRect().top - contentTop;
+      if (Math.abs(offset) > 1) chatLog.scrollTop += offset;
     }
 
     function appendMessage(role, content, extra = {}) {
       const idx = state.messages.length;
       const snapshot = getScrollSnapshot();
+      if (role === 'user') activeStreamShouldFollow = isChatNearBottom();
       state.messages.push({ role, content, ...extra });
       saveState(state);
-      renderChat(snapshot, role === 'assistant');
+      renderChat(snapshot, activeStreamShouldFollow);
       activeStreamIdx = role === 'assistant' ? idx : null;
     }
 
@@ -851,13 +1014,14 @@
       collectAnnotations(annotations);
       saveState(state);
       if (hasAnnotations) {
-        renderChat(snapshot, true);
+        renderChat(snapshot, false, true);
+        keepActiveAnswerStartVisible();
         return;
       }
       const contentDivs = chatLog.querySelectorAll('.msg.assistant .bubble-content');
       const contentDiv = contentDivs[contentDivs.length - 1];
       if (contentDiv) contentDiv.innerHTML = markdownToHTML(content);
-      if (shouldAutoScrollToBottom(snapshot, true)) chatLog.scrollTop = chatLog.scrollHeight;
+      keepActiveAnswerStartVisible();
     }
 
     function applyTemplate(modeId, userText) {
@@ -984,6 +1148,7 @@
         activeStreamIdx = null;
         statusSpan.textContent = '';
         userInput.focus();
+        activeStreamShouldFollow = false;
       }
     }
 
@@ -1099,14 +1264,51 @@
       renderView();
     }
 
+    function exportChat(format) {
+      if (!state.messages.length) return;
+      const lines = [];
+      for (const msg of state.messages) {
+        const label = msg.role === 'user' ? 'You' : 'AI';
+        let content = msg.content || '';
+        content = content.replace(/\n\n`\[Stopped\]`\s*$/, '').trim();
+        if (!content) continue;
+        if (format === 'md') {
+          lines.push(`**${label}:**\n\n${content}\n`);
+        } else {
+          const plain = content
+            .replace(/```[\s\S]*?```/g, m => m.replace(/```\w*\n?/g, '').replace(/```$/m, ''))
+            .replace(/\*\*(.*?)\*\*/g, '$1')
+            .replace(/\*(.*?)\*/g, '$1')
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+          lines.push(`${label}:\n${plain}\n`);
+        }
+      }
+      const ext = format === 'md' ? 'md' : 'txt';
+      const mime = format === 'md' ? 'text/markdown' : 'text/plain';
+      const blob = new Blob([lines.join('\n')], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `chat-${new Date().toISOString().slice(0, 10)}.${ext}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
     // Listeners
     clearChatBtn.addEventListener('click', () => {
       if (abortCtrl) return;
       state.messages = [];
       activeStreamIdx = null;
+      activeStreamShouldFollow = false;
       saveState(state);
       renderChat();
       userInput.focus();
+    });
+
+    exportChatBtn.addEventListener('click', (e) => {
+      const format = e.shiftKey ? 'txt' : 'md';
+      exportChat(format);
     });
 
     sendBtn.addEventListener('click', () => {
@@ -1148,6 +1350,7 @@
         const msgRow = retryBtn.closest('.msg');
         const idx = msgRow ? parseInt(msgRow.dataset.idx, 10) : NaN;
         if (!isNaN(idx) && state.messages[idx] && state.messages[idx].role === 'user') {
+          activeStreamShouldFollow = isChatNearBottom();
           state.messages = state.messages.slice(0, idx + 1);
           activeStreamIdx = null;
           saveState(state);
