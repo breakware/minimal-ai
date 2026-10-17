@@ -476,10 +476,6 @@
         mathExpressions.push({ formula: formula.trim(), display: true });
         return `${prefix}[[MATHD${mathExpressions.length - 1}]]`;
       });
-      text = text.replace(/(^|[^\\])\$(?!\$)([^$\n]+?)\$(?!\$)/g, (match, prefix, formula) => {
-        mathExpressions.push({ formula, display: false });
-        return `${prefix}\x00MATHI${mathExpressions.length - 1}\x00`;
-      });
 
       function renderMath(index) {
         const expression = mathExpressions[index];
@@ -610,7 +606,6 @@
         });
         
         s = s.replace(/\x00INLC(\d+)\x00/g, (m, idx) => `<code>${escapeHtml(inlineCodes[idx] || '')}</code>`);
-        s = s.replace(/\x00MATHI(\d+)\x00/g, (m, idx) => renderMath(idx));
         return s;
       }
 

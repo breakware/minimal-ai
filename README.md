@@ -22,7 +22,7 @@ Drop `index.html` anywhere you can serve static HTML: a personal site, an intran
 
 ## Features
 
-- Markdown and LaTeX formula rendering (`$...$` and `$$...$$` via native MathML)
+- Markdown and display LaTeX formulas (`$$...$$` via native MathML)
 - Streaming responses
 - Retry from any user message
 - Code block copying
