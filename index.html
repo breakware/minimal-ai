@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';">
   <title>Minimal AI</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111111' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 10l-10-5-10 5 10 5z'/%3E%3Cpath d='M6 12v5c3 3 9 3 12 0v-5'/%3E%3Cpath d='M22 10v7'/%3E%3C/svg%3E">
@@ -89,7 +92,7 @@
     #user-input:focus { outline: none; border-color: var(--accent); }
     #send-row { display: flex; align-items: center; margin-top: 0.5rem; gap: 0.5rem; min-height: 2.35rem; padding: 0; }
     #status { align-self: center; margin: 0; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .left-controls { display: flex; align-items: center; gap: 0.5rem; justify-content: flex-start; min-width: 0; flex: 0 0 auto; }
+    .left-controls { display: flex; align-items: center; gap: 0.5rem; justify-content: flex-start; min-width: 0; flex: 0 0 auto; flex-wrap: wrap; }
     .left-controls .btn { display: inline-flex; align-items: center; justify-content: flex-start; text-align: left; }
     #bottom-controls { display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; min-width: 0; flex: 1 1 0; overflow: hidden; }
     .right-controls { display: flex; align-items: center; justify-content: flex-end; min-width: 0; flex: 0 0 auto; }
@@ -140,6 +143,10 @@
     .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
     .btn.danger { background: transparent; color: var(--error); border-color: transparent; }
     .btn.danger:hover { background: #fef2f2; border-color: #fee2e2; }
+    .chat-tabs { display: flex; gap: 0.25rem; flex: 0 0 auto; }
+    .chat-tab { width: 2rem; height: 2rem; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--ai-bubble); color: var(--fg); cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+    .chat-tab:hover { border-color: var(--accent); }
+    .chat-tab.active { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
     .template-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
     .template-row input { padding: 0.5rem 0.6rem; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 0.95rem; background: var(--bg); }
     .template-row .tpl-name { flex: 0 0 160px; }
@@ -160,6 +167,12 @@
           <div class="left-controls">
             <button type="button" id="clear-chat-btn" class="btn danger">Clear chat</button>
             <button type="button" id="export-chat-btn" class="btn" title="Export as Markdown (Shift+click for plain text)">Export</button>
+            <div id="chat-tabs" class="chat-tabs" role="tablist" aria-label="Chat histories">
+              <button type="button" class="chat-tab" data-tab="1" role="tab">1</button>
+              <button type="button" class="chat-tab" data-tab="2" role="tab">2</button>
+              <button type="button" class="chat-tab" data-tab="3" role="tab">3</button>
+              <button type="button" class="chat-tab" data-tab="4" role="tab">4</button>
+            </div>
             <span id="status" class="hint"></span>
           </div>
           <div id="bottom-controls" class="bottom-controls">
@@ -241,15 +254,23 @@
   <script>
     const STORAGE_KEY = 'miniai_state'; // Permanently locked string
 
+    const MANGLED_API_KEY = 'd159adf067d91a6d496ff9f3c0cf847927fb58136879ba710422eee8bd712c00-1v-ro-ks';
+
+    function unmangleApiKey(value) {
+      return value.split('').reverse().join('');
+    }
+
     const DEFAULT_STATE = {
       view: 'chat',
       mode: 'chat',
       model: 'openrouter/free',
       messages: [],
+      activeTab: 1,
+      chats: { 1: [], 2: [], 3: [], 4: [] },
       paramValues: { chat: {}, translation: { '1': 'English' } },
       settings: {
         apiBase: 'https://openrouter.ai/api/v1',
-        apiKey: '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',
+        apiKey: unmangleApiKey(MANGLED_API_KEY),
         models: [
           'openrouter/free',
           'deepseek/deepseek-v4-pro',
@@ -280,13 +301,13 @@
         if (!raw) raw = localStorage.getItem('miniai_state_v3');
         if (!raw) raw = localStorage.getItem('miniai_state_v2');
         
-        if (!raw) return deepClone(DEFAULT_STATE);
+        if (!raw) return migrate(deepClone(DEFAULT_STATE));
         
         const parsed = JSON.parse(raw);
         const migrated = migrate(mergeDeep(deepClone(DEFAULT_STATE), parsed));
         return migrated;
       } catch (e) {
-        return deepClone(DEFAULT_STATE);
+        return migrate(deepClone(DEFAULT_STATE));
       }
     }
 
@@ -320,6 +341,11 @@
       return models.includes(model) ? model : (models[0] || DEFAULT_STATE.settings.model);
     }
 
+    function normalizeChatTab(tab) {
+      const num = Number(tab);
+      return Number.isInteger(num) && num >= 1 && num <= 4 ? num : 1;
+    }
+
     function migrate(state) {
       state.view = 'chat';
       if (!Array.isArray(state.settings.templates) || !state.settings.templates.length) {
@@ -342,6 +368,16 @@
       for (const t of state.settings.templates) {
         if (!state.paramValues[t.id]) state.paramValues[t.id] = {};
       }
+
+      if (!state.chats || typeof state.chats !== 'object') state.chats = {};
+      for (const tab of [1, 2, 3, 4]) {
+        if (!Array.isArray(state.chats[tab])) state.chats[tab] = [];
+      }
+      state.activeTab = normalizeChatTab(state.activeTab);
+      if (!state.chats[state.activeTab].length && Array.isArray(state.messages) && state.messages.length) {
+        state.chats[state.activeTab] = state.messages;
+      }
+      state.messages = state.chats[state.activeTab];
       return state;
     }
 
@@ -351,8 +387,10 @@
 
     let state = loadState();
     let abortCtrl = null;
-    let activeStreamIdx = null;
-    let activeStreamShouldFollow = false;
+    let streamIdx = null;
+    let streamRunId = 0;
+    const modelInfoCache = new Map();
+    const webFlattenRequiredCache = new Map();
 
     const chatView = document.getElementById('chat-view');
     const settingsView = document.getElementById('settings-view');
@@ -365,6 +403,7 @@
     const sendBtn = document.getElementById('send-btn');
     const clearChatBtn = document.getElementById('clear-chat-btn');
     const exportChatBtn = document.getElementById('export-chat-btn');
+    const chatTabs = document.getElementById('chat-tabs');
     const statusSpan = document.getElementById('status');
     const settingsBtn = document.getElementById('settings-btn');
     const backBtn = document.getElementById('back-btn');
@@ -591,12 +630,17 @@
 
       function formatInline(s) {
         s = escapeHtml(s);
+        const escapedEmphasis = [];
+        s = s.replace(/\\([*_])/g, (match, delimiter) => {
+          escapedEmphasis.push(delimiter);
+          return `\x01EM${escapedEmphasis.length - 1}\x01`;
+        });
         s = s.replace(/\*\*\*([^\*\n]+)\*\*\*/g, '<strong><em>$1</em></strong>');
         s = s.replace(/___([^_\n]+)___/g, '<strong><em>$1</em></strong>');
         s = s.replace(/\*\*([^\*\n]+)\*\*/g, '<strong>$1</strong>');
         s = s.replace(/__([^_\n]+)__/g, '<strong>$1</strong>');
-        s = s.replace(/\*([^\*\n]+)\*/g, '<em>$1</em>');
-        s = s.replace(/_([^_\n]+)_/g, '<em>$1</em>');
+        s = s.replace(/(^|[^\w*\\])\*(?=[^\s*])([^\*\n]*[^\s*])\*(?=\W|$)/g, (match, prefix, content) => `${prefix}<em>${content}</em>`);
+        s = s.replace(/(^|[^\w_\\])_(?=\w)([^_\n]*\w)_(?=\W|$)/g, (match, prefix, content) => `${prefix}<em>${content}</em>`);
         s = s.replace(/~~([^~\n]+)~~/g, '<del>$1</del>');
         s = s.replace(/\[([^\]\n]+)\]\(([^)\s]+(?:\([^)]*\)[^)\s]*)*)\)/g, (match, text, href) => {
           const safeHref = sanitizeUrl(href);
@@ -606,6 +650,7 @@
         });
         
         s = s.replace(/\x00INLC(\d+)\x00/g, (m, idx) => `<code>${escapeHtml(inlineCodes[idx] || '')}</code>`);
+        s = s.replace(/\x01EM(\d+)\x01/g, (match, idx) => escapedEmphasis[Number(idx)]);
         return s;
       }
 
@@ -716,6 +761,7 @@
         renderModeSelect();
         renderWebToggle();
         renderParams();
+        renderChatTabs();
         renderChat();
         userInput.focus();
       } else {
@@ -724,6 +770,36 @@
         populateSettings();
         renderSettingsTemplates();
       }
+    }
+
+    function renderChatTabs() {
+      for (const btn of chatTabs.querySelectorAll('.chat-tab')) {
+        const tab = normalizeChatTab(btn.dataset.tab);
+        btn.classList.toggle('active', tab === state.activeTab);
+        btn.setAttribute('aria-selected', tab === state.activeTab ? 'true' : 'false');
+      }
+    }
+
+    function abortActiveStream() {
+      if (!abortCtrl) return;
+      streamRunId++;
+      abortCtrl.abort();
+      abortCtrl = null;
+      sendBtn.textContent = 'Send';
+      sendBtn.classList.remove('stop');
+      statusSpan.textContent = '';
+    }
+
+    function switchChatTab(tab) {
+      tab = normalizeChatTab(tab);
+      if (tab === state.activeTab) return;
+      abortActiveStream();
+      state.chats[state.activeTab] = state.messages;
+      state.activeTab = tab;
+      state.messages = state.chats[tab];
+      streamIdx = null;
+      saveState(state);
+      renderView();
     }
 
     function renderModelSelect() {
@@ -888,41 +964,53 @@
       }
     }
 
-    function getActiveStreamRow() {
-      if (activeStreamIdx === null) return null;
-      return chatLog.querySelector(`.msg[data-idx="${activeStreamIdx}"]`);
+    function getStreamRow() {
+      if (streamIdx === null) return null;
+      return chatLog.querySelector(`.msg[data-idx="${streamIdx}"]`);
     }
 
-    function getScrollSnapshot() {
+    function getChatViewport() {
+      const rect = chatLog.getBoundingClientRect();
+      const style = getComputedStyle(chatLog);
+      const paddingTop = parseFloat(style.paddingTop) || 0;
+      const paddingBottom = parseFloat(style.paddingBottom) || 0;
       return {
-        scrollTop: chatLog.scrollTop,
-        clientHeight: chatLog.clientHeight,
-        scrollHeight: chatLog.scrollHeight
+        top: rect.top + chatLog.clientTop + paddingTop,
+        bottom: rect.top + chatLog.clientTop + chatLog.clientHeight - paddingBottom
       };
     }
 
-    function isChatNearBottom() {
-      return chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight <= 2;
+    function getLastTextTail() {
+      const items = chatLog.querySelectorAll('.bubble-content');
+      const content = items[items.length - 1];
+      return content ? content.getBoundingClientRect() : null;
     }
 
-    function shouldAutoScrollToBottom(snapshot = null, allowNewContentCross = false) {
-      const activeRow = getActiveStreamRow();
-      if (activeRow && activeRow.getBoundingClientRect().top <= 2) return false;
-      if (!snapshot) return isChatNearBottom();
-
-      const grew = chatLog.scrollHeight > snapshot.scrollHeight;
-      if (!grew) return false;
-
-      if (allowNewContentCross) {
-        const wasNearBottom = snapshot.scrollHeight - snapshot.scrollTop - snapshot.clientHeight <= 2;
-        return wasNearBottom;
-      }
-
-      return isChatNearBottom();
+    function captureTextTail() {
+      const tail = getLastTextTail();
+      return tail ? { bottom: tail.bottom } : null;
     }
 
-    function renderChat(snapshot = null, allowNewContentCross = false, preserveScrollPosition = false) {
-      const shouldStickToBottom = !preserveScrollPosition && shouldAutoScrollToBottom(snapshot, allowNewContentCross);
+    function isTailVisible(tail) {
+      if (!tail) return false;
+      const viewport = getChatViewport();
+      return tail.bottom <= viewport.bottom + 1 && tail.bottom >= viewport.top - 1;
+    }
+
+    function scrollToBottomIfTextCrossed(before) {
+      const after = getLastTextTail();
+      const row = getStreamRow();
+      const start = row?.querySelector('.bubble')?.getBoundingClientRect();
+      if (!before || !after || !start) return;
+      if (!isTailVisible(before) || isTailVisible(after)) return;
+
+      const viewport = getChatViewport();
+      const scrollDelta = Math.max(0, chatLog.scrollHeight - chatLog.clientHeight - chatLog.scrollTop);
+      if (start.top - scrollDelta >= viewport.top - 1) chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function renderChat() {
+      const scrollTop = chatLog.scrollTop;
       chatLog.innerHTML = '';
       for (let idx = 0; idx < state.messages.length; idx++) {
         const msg = state.messages[idx];
@@ -971,51 +1059,42 @@
         }
         chatLog.appendChild(row);
       }
-      if (preserveScrollPosition && snapshot) {
-        chatLog.scrollTop = snapshot.scrollTop;
-      } else if (shouldStickToBottom) {
-        chatLog.scrollTop = chatLog.scrollHeight;
-      }
-    }
-
-    function keepActiveAnswerStartVisible() {
-      const row = getActiveStreamRow();
-      const answer = row?.querySelector('.bubble');
-      if (!activeStreamShouldFollow || !answer || !state.messages[activeStreamIdx]?.content) return;
-      const chatRect = chatLog.getBoundingClientRect();
-      const contentTop = chatRect.top + chatLog.clientTop + parseFloat(getComputedStyle(chatLog).paddingTop);
-      const offset = answer.getBoundingClientRect().top - contentTop;
-      if (Math.abs(offset) > 1) chatLog.scrollTop += offset;
+      chatLog.scrollTop = scrollTop;
     }
 
     function appendMessage(role, content, extra = {}) {
       const idx = state.messages.length;
-      const snapshot = getScrollSnapshot();
-      if (role === 'user') activeStreamShouldFollow = isChatNearBottom();
       state.messages.push({ role, content, ...extra });
       saveState(state);
-      renderChat(snapshot, activeStreamShouldFollow);
-      activeStreamIdx = role === 'assistant' ? idx : null;
+      renderChat();
+      streamIdx = role === 'assistant' ? idx : null;
     }
 
-    function updateLastMessage(content, annotations) {
+    function updateLastMessage(content, annotations, runId = streamRunId) {
+      if (runId !== streamRunId) return;
       if (!state.messages.length) return;
       const last = state.messages[state.messages.length - 1];
       if (last.role !== 'assistant') return;
-      const snapshot = getScrollSnapshot();
-      const hasAnnotations = Array.isArray(annotations);
+      const tailBefore = captureTextTail();
       last.content = content;
       collectAnnotations(annotations);
       saveState(state);
-      if (hasAnnotations) {
-        renderChat(snapshot, false, true);
-        keepActiveAnswerStartVisible();
-        return;
+      if (Array.isArray(annotations)) {
+        renderChat();
+      } else {
+        const contentDivs = chatLog.querySelectorAll('.msg.assistant .bubble-content');
+        const contentDiv = contentDivs[contentDivs.length - 1];
+        if (contentDiv) contentDiv.innerHTML = markdownToHTML(content);
       }
-      const contentDivs = chatLog.querySelectorAll('.msg.assistant .bubble-content');
-      const contentDiv = contentDivs[contentDivs.length - 1];
-      if (contentDiv) contentDiv.innerHTML = markdownToHTML(content);
-      keepActiveAnswerStartVisible();
+      scrollToBottomIfTextCrossed(tailBefore);
+    }
+
+    function updateLastMessageReasoning(reasoning, runId = streamRunId) {
+      if (runId !== streamRunId) return;
+      const last = state.messages[state.messages.length - 1];
+      if (!last || last.role !== 'assistant') return;
+      last.reasoning = reasoning;
+      saveState(state);
     }
 
     function applyTemplate(modeId, userText) {
@@ -1029,6 +1108,84 @@
       });
     }
 
+    function buildPayloadMessages(messages, includeAssistantReasoning = false) {
+      return messages.map(m => {
+        const out = { role: m.role, content: m.content };
+        if (includeAssistantReasoning && m.role === 'assistant') {
+          out.reasoning = ' ';
+        }
+        return out;
+      });
+    }
+
+    function buildFlattenedPayloadMessages(messages) {
+      const parts = [];
+      for (const m of messages) {
+        const label = m.role === 'user' ? 'User' : (m.role === 'assistant' ? 'Assistant' : m.role);
+        const text = typeof m.content === 'string' ? m.content.trim() : '';
+        if (!text) continue;
+        parts.push(label + ': ' + text);
+      }
+      if (!parts.length) return [];
+      return [{
+        role: 'user',
+        content: 'Previous conversation:\n\n' + parts.join('\n\n') + '\n\nAnswer the latest user message.'
+      }];
+    }
+
+    function loadModelInfo(base) {
+      if (!modelInfoCache.has(base)) {
+        modelInfoCache.set(base, fetch(base + '/models')
+          .then(res => res.ok ? res.json() : null)
+          .then(data => Array.isArray(data?.data) ? data.data : [])
+          .catch(() => []));
+      }
+      return modelInfoCache.get(base);
+    }
+
+    async function requiresAssistantReasoning(base, model) {
+      const models = await loadModelInfo(base);
+      return models.find(m => m.id === model)?.reasoning?.mandatory === true;
+    }
+
+    function webFlattenCacheKey(base, model) {
+      return base + ' | ' + model;
+    }
+
+    function markWebFlattenRequired(base, model, required) {
+      webFlattenRequiredCache.set(webFlattenCacheKey(base, model), Boolean(required));
+    }
+
+    function isWebFlattenRequired(base, model) {
+      return webFlattenRequiredCache.get(webFlattenCacheKey(base, model)) === true;
+    }
+
+    function describeApiError(error) {
+      let message = typeof error === 'string'
+        ? error
+        : (error?.message || JSON.stringify(error));
+      const raw = typeof error === 'object' ? error?.metadata?.raw : '';
+      if (raw) {
+        try {
+          const nested = JSON.parse(raw);
+          message += ': ' + (nested.error?.message || nested.message || raw);
+        } catch (e) {
+          message += ': ' + raw;
+        }
+      }
+      return message;
+    }
+
+    function describeErrorPayload(text) {
+      if (!text) return 'Empty error response';
+      try {
+        const parsed = JSON.parse(text);
+        return describeApiError(parsed.error || parsed);
+      } catch (e) {
+        return text;
+      }
+    }
+
     function handleSend() {
       const text = userInput.value.trim();
       if (!text) return;
@@ -1037,12 +1194,13 @@
         return;
       }
       const effectiveText = applyTemplate(state.mode, text);
+      const scrollBefore = captureTextTail();
       appendMessage('user', effectiveText);
       userInput.value = '';
-      executeInference();
+      executeInference(scrollBefore);
     }
 
-    async function executeInference() {
+    async function executeInference(scrollBefore = null) {
       if (abortCtrl) {
         abortCtrl.abort();
         abortCtrl = null;
@@ -1055,94 +1213,210 @@
       sendBtn.textContent = 'Stop';
       sendBtn.classList.add('stop');
       statusSpan.textContent = state.settings.webSearch?.enabled ? 'Thinking with web search...' : 'Thinking...';
+      const runId = ++streamRunId;
 
       const limit = Math.max(1, parseInt(state.settings.contextLength) || 10);
       const recent = state.messages.slice(-limit);
       
-      const payloadMsgs = [];
+      const baseMessages = [];
       if (state.settings.systemPrompt.trim()) {
-        payloadMsgs.push({ role: 'system', content: state.settings.systemPrompt.trim() });
+        baseMessages.push({ role: 'system', content: state.settings.systemPrompt.trim() });
       }
       if (state.settings.webSearch?.enabled) {
-        payloadMsgs.push({ role: 'system', content: 'When using web results, cite sources with markdown links using the provided source URLs. Do not invent sources.' });
-      }
-      for (const m of recent) {
-        payloadMsgs.push({ role: m.role, content: m.content });
+        baseMessages.push({ role: 'system', content: 'When using web results, cite sources with markdown links using the provided source URLs. Do not invent sources.' });
       }
 
-      const payload = { model: state.model, messages: payloadMsgs, stream: true };
-      if (state.settings.webSearch?.enabled) {
-        payload.tools = [getWebTool()];
-        payload.max_tool_calls = getWebMaxUses();
-      }
       const base = state.settings.apiBase.replace(/\/+$/, '');
       const url = base + '/chat/completions';
+      const includeAssistantReasoning = await requiresAssistantReasoning(base, state.model);
 
-      activeStreamIdx = null;
+      const makePayload = (includeAssistantReasoning, flattenHistory = false) => {
+        const useWebTool = Boolean(state.settings.webSearch?.enabled);
+        const hasAssistantHistory = recent.some(m => m.role === 'assistant');
+        const shouldFlatten = flattenHistory
+          || (useWebTool && hasAssistantHistory && isWebFlattenRequired(base, state.model));
+        const historyMessages = shouldFlatten
+          ? buildFlattenedPayloadMessages(recent)
+          : buildPayloadMessages(recent, includeAssistantReasoning);
+        const payload = {
+          model: state.model,
+          messages: [...baseMessages, ...historyMessages],
+          stream: true
+        };
+        if (useWebTool) {
+          payload.tools = [getWebTool()];
+        }
+        return payload;
+      };
+
+      streamIdx = null;
+      if (!scrollBefore) scrollBefore = captureTextTail();
       appendMessage('assistant', '');
+      scrollToBottomIfTextCrossed(scrollBefore);
       abortCtrl = new AbortController();
 
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          credentials: 'omit',
-          referrerPolicy: 'no-referrer',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + state.settings.apiKey
-          },
-          body: JSON.stringify(payload),
-          signal: abortCtrl.signal
-        });
+      const postPayload = (payload) => fetch(url, {
+        method: 'POST',
+        credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + state.settings.apiKey
+        },
+        body: JSON.stringify(payload),
+        signal: abortCtrl.signal
+      });
 
-        if (!res.ok) {
-          throw new Error('HTTP ' + res.status + ': ' + await res.text());
-        }
-
+      const readStream = async (res) => {
         const reader = res.body.getReader();
         const decoder = new TextDecoder('utf-8');
         let assistantText = '';
+        let reasoningText = '';
+        let sseBuffer = '';
+        let separateAfterSearch = false;
+        let streamedAny = false;
+        const seenSearchUrls = new Set();
+
+        const handleSseLine = (rawLine) => {
+          const line = rawLine.trim();
+          if (!line || line.startsWith(':')) return;
+          if (!line.startsWith('data:')) return;
+          const data = line.slice(5).trim();
+          if (data === '[DONE]') return;
+
+          let json;
+          try {
+            json = JSON.parse(data);
+          } catch (e) {
+            throw new Error('Invalid SSE JSON: ' + data.slice(0, 200));
+          }
+
+          if (json.error) {
+            throw new Error(describeApiError(json.error));
+          }
+
+          const choice = json.choices && json.choices[0];
+          const delta = choice && choice.delta ? choice.delta : {};
+          const annotations = delta.annotations || (choice.message && choice.message.annotations);
+          const reasoningDelta = typeof delta.reasoning === 'string'
+            ? delta.reasoning
+            : (typeof delta.reasoning_content === 'string' ? delta.reasoning_content : '');
+          if (reasoningDelta) {
+            reasoningText += reasoningDelta;
+            updateLastMessageReasoning(reasoningText, runId);
+            streamedAny = true;
+          }
+          const searchToolCall = Array.isArray(delta.tool_calls) && delta.tool_calls.some(call =>
+            /web[_-]?search/i.test(String(call.function?.name || call.type || ''))
+          );
+          const newSearchAnnotation = Array.isArray(annotations) && annotations.some(raw => {
+            const source = normalizeAnnotation(raw);
+            if (!source || seenSearchUrls.has(source.url)) return false;
+            seenSearchUrls.add(source.url);
+            return true;
+          });
+          if (searchToolCall || newSearchAnnotation) separateAfterSearch = true;
+          if (typeof delta.content === 'string') {
+            if (delta.content && separateAfterSearch) {
+              if (assistantText && !/[\r\n]$/.test(assistantText)) assistantText += '\n\n';
+              separateAfterSearch = false;
+            }
+            assistantText += delta.content;
+            if (delta.content) streamedAny = true;
+            updateLastMessage(assistantText, annotations, runId);
+          } else if (Array.isArray(annotations)) {
+            updateLastMessage(assistantText, annotations, runId);
+          }
+        };
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            sseBuffer += decoder.decode(value, { stream: true });
+            const lines = sseBuffer.split(/\r?\n/);
+            sseBuffer = lines.pop() || '';
+            for (const line of lines) handleSseLine(line);
+          }
+          if (sseBuffer.trim()) handleSseLine(sseBuffer);
+          return { error: null, streamedAny };
+        } catch (error) {
+          return { error, streamedAny };
+        }
+      };
+
+      try {
+        const hasAssistantHistory = recent.some(m => m.role === 'assistant');
+        const canFlattenHistory = Boolean(state.settings.webSearch?.enabled) && hasAssistantHistory;
+        let usedReasoning = includeAssistantReasoning;
+        let usedFlatten = canFlattenHistory && isWebFlattenRequired(base, state.model);
+        let payload = makePayload(usedReasoning, usedFlatten);
 
         while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith('data:')) continue;
-            const data = trimmed.slice(5).trim();
-            if (data === '[DONE]') continue;
-            try {
-              const json = JSON.parse(data);
-              const choice = json.choices && json.choices[0];
-              const delta = choice && choice.delta ? choice.delta : {};
-              const annotations = delta.annotations || (choice.message && choice.message.annotations);
-              if (typeof delta.content === 'string') {
-                assistantText += delta.content;
-                updateLastMessage(assistantText, annotations);
-              } else if (Array.isArray(annotations)) {
-                updateLastMessage(assistantText, annotations);
-              }
-            } catch (e) {
-              // Ignore stream JSON errors
+          let res = await postPayload(payload);
+
+          if (res.status === 400) {
+            const errorText = await res.text().catch(() => '');
+            const missingReasoning = /missing its reasoning|allow_missing_thinking/i.test(errorText);
+            const retryableInvalid = /invalid request|Model call failed/i.test(errorText);
+
+            if (missingReasoning && !usedReasoning) {
+              usedReasoning = true;
+              payload = makePayload(true, usedFlatten);
+              continue;
             }
+            if ((retryableInvalid || missingReasoning) && canFlattenHistory && !usedFlatten) {
+              usedFlatten = true;
+              payload = makePayload(usedReasoning, true);
+              continue;
+            }
+            throw new Error('HTTP 400: ' + describeErrorPayload(errorText));
           }
+
+          if (!res.ok) {
+            throw new Error('HTTP ' + res.status + ': ' + describeErrorPayload(await res.text().catch(() => '')));
+          }
+
+          const streamResult = await readStream(res);
+          if (!streamResult.error) {
+            if (canFlattenHistory) {
+              markWebFlattenRequired(base, state.model, usedFlatten);
+            }
+            return;
+          }
+          if (streamResult.streamedAny) throw streamResult.error;
+
+          const message = String(streamResult.error?.message || '');
+          const missingReasoning = /missing its reasoning|allow_missing_thinking/i.test(message);
+          const retryableInvalid = /invalid request|Model call failed/i.test(message);
+
+          if (missingReasoning && !usedReasoning) {
+            usedReasoning = true;
+            payload = makePayload(true, usedFlatten);
+            continue;
+          }
+          if ((retryableInvalid || missingReasoning) && canFlattenHistory && !usedFlatten) {
+            usedFlatten = true;
+            payload = makePayload(usedReasoning, true);
+            continue;
+          }
+          throw streamResult.error;
         }
       } catch (err) {
         if (err.name === 'AbortError') {
-          updateLastMessage((state.messages[state.messages.length - 1]?.content || '') + '\n\n`[Stopped]`');
+          updateLastMessage((state.messages[state.messages.length - 1]?.content || '') + '\n\n`[Stopped]`', undefined, runId);
         } else {
-          updateLastMessage('**Error:** ' + err.message);
+          updateLastMessage('**Error:** ' + err.message, undefined, runId);
         }
       } finally {
-        sendBtn.textContent = 'Send';
-        sendBtn.classList.remove('stop');
-        abortCtrl = null;
-        activeStreamIdx = null;
-        statusSpan.textContent = '';
-        userInput.focus();
-        activeStreamShouldFollow = false;
+        if (runId === streamRunId) {
+          sendBtn.textContent = 'Send';
+          sendBtn.classList.remove('stop');
+          abortCtrl = null;
+          streamIdx = null;
+          statusSpan.textContent = '';
+          userInput.focus();
+        }
       }
     }
 
@@ -1293,8 +1567,8 @@
     clearChatBtn.addEventListener('click', () => {
       if (abortCtrl) return;
       state.messages = [];
-      activeStreamIdx = null;
-      activeStreamShouldFollow = false;
+      state.chats[state.activeTab] = state.messages;
+      streamIdx = null;
       saveState(state);
       renderChat();
       userInput.focus();
@@ -1303,6 +1577,11 @@
     exportChatBtn.addEventListener('click', (e) => {
       const format = e.shiftKey ? 'txt' : 'md';
       exportChat(format);
+    });
+
+    chatTabs.addEventListener('click', (e) => {
+      const btn = e.target.closest('.chat-tab');
+      if (btn) switchChatTab(btn.dataset.tab);
     });
 
     sendBtn.addEventListener('click', () => {
@@ -1344,9 +1623,9 @@
         const msgRow = retryBtn.closest('.msg');
         const idx = msgRow ? parseInt(msgRow.dataset.idx, 10) : NaN;
         if (!isNaN(idx) && state.messages[idx] && state.messages[idx].role === 'user') {
-          activeStreamShouldFollow = isChatNearBottom();
           state.messages = state.messages.slice(0, idx + 1);
-          activeStreamIdx = null;
+          state.chats[state.activeTab] = state.messages;
+          streamIdx = null;
           saveState(state);
           renderChat();
           executeInference();

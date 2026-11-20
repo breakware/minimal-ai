@@ -6,6 +6,8 @@ A tiny, single-file browser chat client for any OpenAI-compatible API endpoint (
 
 Open `index.html` in a browser. It works immediately with OpenRouter free models.
 
+The numbered tabs next to **Export** switch between four independent chat histories. They are stored locally as tabs `1`–`4`; model, API, template, and search settings are shared across all tabs.
+
 To use paid models, create an [OpenRouter](https://openrouter.ai) account, generate an API key, and paste it in **Settings**.
 
 ## Use it on your own page
@@ -22,6 +24,7 @@ Drop `index.html` anywhere you can serve static HTML: a personal site, an intran
 
 ## Features
 
+- Four fixed chat tabs (`1`–`4`) with independent histories in `localStorage`; settings are shared across tabs
 - Markdown and display LaTeX formulas (`$$...$$` via native MathML)
 - Streaming responses
 - Retry from any user message
